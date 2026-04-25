@@ -12,7 +12,10 @@ export async function GET(request: NextRequest) {
     const skip = (page - 1) * limit;
 
     // Filters
-    const state = searchParams.get("state") as NERState | null;
+    const stateParam = searchParams.get("state");
+    const state = Object.values(NERState).includes(stateParam as any) 
+      ? (stateParam as NERState) 
+      : null;
     const experienceType = searchParams.get("experienceType") as ExperienceType | null;
     const ilpRequiredStr = searchParams.get("ilpRequired");
     const search = searchParams.get("search");
