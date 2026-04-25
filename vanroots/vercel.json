@@ -7,7 +7,7 @@
     "AUTH_SECRET": "@auth_secret",
     "AUTH_GOOGLE_ID": "@auth_google_id",
     "AUTH_GOOGLE_SECRET": "@auth_google_secret",
-    "ANTHROPIC_API_KEY": "@anthropic_api_key",
+    "GROQ_API_KEY": "@groq_api_key",
     "CLOUDINARY_CLOUD_NAME": "@cloudinary_cloud_name",
     "CLOUDINARY_API_KEY": "@cloudinary_api_key",
     "CLOUDINARY_API_SECRET": "@cloudinary_api_secret",

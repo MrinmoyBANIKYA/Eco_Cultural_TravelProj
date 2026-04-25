@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import Anthropic from "@anthropic-ai/sdk";
+import Groq from "groq-sdk";
 import prisma from "@/lib/db";
 
 // Zod schema for request validation
@@ -19,8 +19,8 @@ const recommendSchema = z.object({
 
 type TravelerProfile = z.infer<typeof recommendSchema>;
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY || "",
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY || "",
 });
 
 export async function POST(request: NextRequest) {
@@ -39,7 +39,6 @@ export async function POST(request: NextRequest) {
     const travelerProfile = validation.data;
 
     // 2. Fetch top 20 communities from DB
-    // Logic: featured first, then by rating
     const communities = await prisma.community.findMany({
       take: 20,
       orderBy: [{ featured: "desc" }, { rating: "desc" }],
@@ -67,7 +66,7 @@ export async function POST(request: NextRequest) {
       rating: c.rating,
     }));
 
-    // 4. Call Anthropic Claude API
+    // 4. Call Groq API
     const systemPrompt = `You are VanRoots, a warm and knowledgeable cultural guide for Northeast India. 
 Given traveler preferences and community data, recommend the 3 best matching communities.
 Respond ONLY with valid JSON in this exact format, no other text:
@@ -75,7 +74,7 @@ Respond ONLY with valid JSON in this exact format, no other text:
   "recommendations": [
     {
       "communitySlug": "string",
-      "matchScore": "number (0-100)",
+      "matchScore": number,
       "whyThisMatch": "string (2 sentences, warm tone)",
       "bestTimeToVisit": "string",
       "mustDo": "string"
@@ -89,16 +88,18 @@ Respond ONLY with valid JSON in this exact format, no other text:
       communities: contextArray,
     });
 
-    const msg = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20241022",
-      max_tokens: 1000,
-      system: systemPrompt,
-      messages: [{ role: "user", content: userMessage }],
+    const chatCompletion = await groq.chat.completions.create({
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMessage },
+      ],
+      model: "llama-3.3-70b-specdec",
+      temperature: 0.7,
+      max_tokens: 1024,
+      response_format: { type: "json_object" },
     });
 
-    // 5. Parse response
-    const aiResponseText =
-      msg.content[0].type === "text" ? msg.content[0].text : "";
+    const aiResponseText = chatCompletion.choices[0]?.message?.content || "";
     let aiJson;
     try {
       aiJson = JSON.parse(aiResponseText);
@@ -107,7 +108,7 @@ Respond ONLY with valid JSON in this exact format, no other text:
       throw new Error("Failed to parse AI response");
     }
 
-    // 6. Enrich recommendations with full community data
+    // 5. Enrich recommendations with full community data
     const enrichedRecommendations = aiJson.recommendations.map((rec: any) => {
       const communityData = communities.find(
         (c) => c.slug === rec.communitySlug
@@ -118,18 +119,17 @@ Respond ONLY with valid JSON in this exact format, no other text:
       };
     });
 
-    // 7. Save session to RecommendationSession table
+    // 6. Save session to RecommendationSession table
     const session = await prisma.recommendationSession.create({
       data: {
         inputParams: travelerProfile as any,
         recommendedIds: enrichedRecommendations
           .filter((r: any) => r.community)
           .map((r: any) => r.community.id),
-        // userId: session?.user?.id, // Logic for authenticated user can be added later
       },
     });
 
-    // 8. Return results
+    // 7. Return results
     return NextResponse.json({
       recommendations: enrichedRecommendations,
       travelTip: aiJson.travelTip,
