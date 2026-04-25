@@ -1,0 +1,45 @@
+<svg width="200" height="60" viewBox="0 0 200 60" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="leafGrad" x1="26" y1="4" x2="26" y2="54" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#E8B84B" />
+      <stop offset="100%" stop-color="#C4793A" />
+    </linearGradient>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&amp;display=swap');
+      .brand-text { font-family: 'Playfair Display', serif; font-weight: 700; font-size: 28px; }
+      .tagline { font-family: sans-serif; font-size: 9px; letter-spacing: 0.5px; }
+    </style>
+  </defs>
+
+  <!-- Leaf Icon -->
+  <g id="leaf">
+    <path d="M26,4 C26,4 50,14 50,32 C50,46 40,54 26,54 C12,54 2,46 2,32 C2,14 26,4 26,4Z" fill="url(#leafGrad)" />
+    
+    <!-- Center Vein -->
+    <line x1="26" y1="6" x2="26" y2="52" stroke="white" stroke-width="1.5" stroke-opacity="0.4" />
+    
+    <!-- Side Veins -->
+    <g stroke="white" stroke-width="1" stroke-opacity="0.25">
+      <line x1="26" y1="16" x2="42" y2="24" />
+      <line x1="26" y1="16" x2="10" y2="24" />
+      
+      <line x1="26" y1="28" x2="46" y2="34" />
+      <line x1="26" y1="28" x2="6" y2="34" />
+      
+      <line x1="26" y1="38" x2="44" y2="44" />
+      <line x1="26" y1="38" x2="8" y2="44" />
+      
+      <line x1="26" y1="46" x2="36" y2="50" />
+      <line x1="26" y1="46" x2="16" y2="50" />
+    </g>
+  </g>
+
+  <!-- Text Section -->
+  <text x="62" y="40" class="brand-text">
+    <tspan fill="#1A3D2B">Van</tspan><tspan fill="#C4793A">Roots</tspan>
+  </text>
+  
+  <text x="62" y="52" class="tagline" fill="#8a8a8a">
+    WHERE EVERY PATH HAS A STORY
+  </text>
+</svg>
