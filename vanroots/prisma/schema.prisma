@@ -1,0 +1,159 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  TRAVELER
+  COMMUNITY_ADMIN
+  SUPER_ADMIN
+}
+
+enum NERState {
+  ASSAM
+  ARUNACHAL_PRADESH
+  NAGALAND
+  MANIPUR
+  MEGHALAYA
+  MIZORAM
+  TRIPURA
+  SIKKIM
+}
+
+enum ExperienceType {
+  ECO
+  CULTURAL
+  CULINARY
+  ADVENTURE
+  SPIRITUAL
+}
+
+enum ContentType {
+  BELIEF
+  FOLKLORE
+  FOOD
+  FESTIVAL
+  ECO_SPOT
+}
+
+enum AccommodationType {
+  HOMESTAY
+  GUESTHOUSE
+  RESORT
+  CAMP
+  DORMITORY
+}
+
+enum InquiryStatus {
+  NEW
+  REPLIED
+  CLOSED
+}
+
+model User {
+  id            String         @id @default(cuid())
+  email         String         @unique
+  name          String?
+  avatarUrl     String?
+  role          UserRole       @default(TRAVELER)
+  community     Community?     @relation("CommunityAdmin")
+  inquiries     Inquiry[]      @relation("TravelerInquiries")
+  sessions      RecommendationSession[]
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+}
+
+model Community {
+  id              String          @id @default(cuid())
+  slug            String          @unique
+  name            String
+  state           NERState
+  latitude        Float
+  longitude       Float
+  verified        Boolean         @default(false)
+  featured        Boolean         @default(false)
+  adminUserId     String          @unique
+  adminUser       User            @relation("CommunityAdmin", fields: [adminUserId], references: [id])
+  shortDesc       String?
+  longDesc        String?
+  primaryLanguage String?
+  ilpRequired     Boolean         @default(false)
+  population      Int?
+  foundedNote     String?
+  coverImageUrl   String?
+  galleryUrls     String[]
+  experienceTypes ExperienceType[]
+  rating          Float?          @default(0)
+  reviewCount     Int             @default(0)
+  content         CulturalContent[]
+  people          CommunityPerson[]
+  accommodations  Accommodation[]
+  inquiries       Inquiry[]
+  embedding       Float[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model CulturalContent {
+  id           String      @id @default(cuid())
+  communityId  String
+  community    Community   @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  contentType  ContentType
+  title        String
+  body         Json
+  mediaUrls    String[]
+  season       String?
+  featured     Boolean     @default(false)
+  createdAt    DateTime    @default(now())
+}
+
+model CommunityPerson {
+  id          String    @id @default(cuid())
+  communityId String
+  community   Community @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  name        String
+  role        String
+  photoUrl    String?
+  quote       String?
+  featured    Boolean   @default(false)
+}
+
+model Accommodation {
+  id          String            @id @default(cuid())
+  communityId String
+  community   Community         @relation(fields: [communityId], references: [id], onDelete: Cascade)
+  name        String
+  type        AccommodationType
+  contact     String?
+  externalUrl String?
+  latitude    Float?
+  longitude   Float?
+}
+
+model Inquiry {
+  id            String        @id @default(cuid())
+  communityId   String
+  community     Community     @relation(fields: [communityId], references: [id])
+  travelerId    String?
+  traveler      User?         @relation("TravelerInquiries", fields: [travelerId], references: [id])
+  travelerEmail String
+  message       String
+  groupSize     Int?
+  travelDates   String?
+  status        InquiryStatus @default(NEW)
+  createdAt     DateTime      @default(now())
+}
+
+model RecommendationSession {
+  id              String   @id @default(cuid())
+  userId          String?
+  user            User?    @relation(fields: [userId], references: [id])
+  inputParams     Json
+  recommendedIds  String[]
+  acceptedId      String?
+  createdAt       DateTime @default(now())
+}
