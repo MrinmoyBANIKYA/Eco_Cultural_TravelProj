@@ -65,8 +65,8 @@ const communitySchema = z.object({
   longDesc: z.string().optional(),
   primaryLanguage: z.string().optional(),
   population: z.number().optional(),
-  ilpRequired: z.boolean().default(false),
-  experienceTypes: z.array(z.string()).default([]),
+  ilpRequired: z.boolean(),
+  experienceTypes: z.array(z.string()),
   coverImageUrl: z.string().optional(),
   latitude: z.number(),
   longitude: z.number(),
@@ -75,23 +75,23 @@ const communitySchema = z.object({
     contentType: z.string(),
     title: z.string(),
     body: z.any(), // Json
-    featured: z.boolean().default(false),
-  })).default([]),
+    featured: z.boolean(),
+  })),
   people: z.array(z.object({
     id: z.string().optional(),
     name: z.string(),
     role: z.string(),
     photoUrl: z.string().optional(),
     quote: z.string().optional(),
-    featured: z.boolean().default(false),
-  })).default([]),
+    featured: z.boolean(),
+  })),
   accommodations: z.array(z.object({
     id: z.string().optional(),
     name: z.string(),
     type: z.string(),
     contact: z.string().optional(),
     externalUrl: z.string().optional(),
-  })).default([]),
+  })),
 });
 
 type CommunityFormValues = z.infer<typeof communitySchema>;
@@ -108,8 +108,13 @@ export default function ProfileEditor({ communityId, initialData }: ProfileEdito
     resolver: zodResolver(communitySchema),
     defaultValues: {
       ...initialData,
+      ilpRequired: initialData.ilpRequired || false,
+      experienceTypes: initialData.experienceTypes || [],
       latitude: initialData.latitude || 26.14,
       longitude: initialData.longitude || 91.73,
+      content: initialData.content || [],
+      people: initialData.people || [],
+      accommodations: initialData.accommodations || [],
     },
   });
 
@@ -333,7 +338,7 @@ export default function ProfileEditor({ communityId, initialData }: ProfileEdito
             <TabsContent value="culture" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Cultural Content (Beliefs & Festivals)</h3>
-                <Button variant="outline" size="sm" onClick={() => appendContent({ contentType: "BELIEF", title: "", body: "" })}>
+                <Button variant="outline" size="sm" onClick={() => appendContent({ contentType: "BELIEF", title: "", body: "", featured: false })}>
                   <Plus className="mr-2 h-4 w-4" /> Add Item
                 </Button>
               </div>
@@ -387,7 +392,7 @@ export default function ProfileEditor({ communityId, initialData }: ProfileEdito
             <TabsContent value="food" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Food & Folklore</h3>
-                <Button variant="outline" size="sm" onClick={() => appendContent({ contentType: "FOOD", title: "", body: "" })}>
+                <Button variant="outline" size="sm" onClick={() => appendContent({ contentType: "FOOD", title: "", body: "", featured: false })}>
                   <Plus className="mr-2 h-4 w-4" /> Add Item
                 </Button>
               </div>
@@ -441,7 +446,7 @@ export default function ProfileEditor({ communityId, initialData }: ProfileEdito
             <TabsContent value="people" className="space-y-6">
               <div className="flex justify-between items-center">
                 <h3 className="text-lg font-medium">Community Members</h3>
-                <Button variant="outline" size="sm" onClick={() => appendPerson({ name: "", role: "" })}>
+                <Button variant="outline" size="sm" onClick={() => appendPerson({ name: "", role: "", featured: false })}>
                   <Plus className="mr-2 h-4 w-4" /> Add Person
                 </Button>
               </div>

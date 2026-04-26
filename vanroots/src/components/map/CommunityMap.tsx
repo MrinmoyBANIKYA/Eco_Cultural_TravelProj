@@ -1,33 +1,30 @@
 "use client";
 
-import React, { useState, useMemo, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import dynamic from "next/dynamic";
-import "leaflet/dist/leaflet.css";
-import L from "leaflet";
+import { 
+  Search, 
+  Map as MapIcon, 
+  List, 
+  ChevronDown, 
+  Star,
+  Info,
+  ExternalLink,
+  X
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Star, MapPin, Info, ArrowRight } from "lucide-react";
+import { NERState } from "@prisma/client";
+import "leaflet/dist/leaflet.css";
 
-// --- Leaflet Icon Fix ---
-if (typeof window !== "undefined") {
-  delete (L.Icon.Default.prototype as any)._getIconUrl;
-  L.Icon.Default.mergeOptions({
-    iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-    iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-    shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
-  });
-}
+// Dynamic import for Leaflet to avoid SSR issues
+const MapContainer = dynamic(() => import("react-leaflet").then((mod) => mod.MapContainer), { ssr: false });
+const TileLayer = dynamic(() => import("react-leaflet").then((mod) => mod.TileLayer), { ssr: false });
+const Marker = dynamic(() => import("react-leaflet").then((mod) => mod.Marker), { ssr: false });
+const Popup = dynamic(() => import("react-leaflet").then((mod) => mod.Popup), { ssr: false });
 
-// --- Types ---
 interface Community {
   id: string;
   slug: string;
@@ -38,197 +35,188 @@ interface Community {
   experienceTypes: string[];
   ilpRequired: boolean;
   rating: number;
-  coverImageUrl?: string;
-  shortDesc?: string;
+  coverImageUrl: string;
+  shortDesc: string;
 }
 
 interface CommunityMapProps {
   communities: Community[];
-  onCommunitySelect: (slug: string) => void;
+  onCommunitySelect?: (slug: string) => void;
   selectedSlug?: string;
 }
 
-// --- Helper: Custom Marker Icon ---
-const getMarkerIcon = (type: string, isSelected: boolean) => {
-  const colors: Record<string, string> = {
-    ECO: "#2d6a49",
-    CULTURAL: "#C4793A",
-    CULINARY: "#E8B84B",
-    ADVENTURE: "#4A90A4",
-    DEFAULT: "#1A3D2B",
-  };
+export default function CommunityMap({ communities, onCommunitySelect, selectedSlug }: CommunityMapProps) {
+  const [search, setSearch] = useState("");
+  const [selectedStates, setSelectedStates] = useState<string[]>([]);
+  const [ilpOnly, setIlpOnly] = useState(false);
+  const [viewMode, setViewMode] = useState<"split" | "map" | "list">("split");
 
-  const color = colors[type] || colors.DEFAULT;
-  const size = isSelected ? 40 : 30;
-  const pulseClass = isSelected ? "animate-pulse" : "";
-
-  return L.divIcon({
-    className: "custom-div-icon",
-    html: `
-      <div class="relative ${pulseClass}" style="width: ${size}px; height: ${size}px;">
-        <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 21C16 17 20 13.4183 20 9C20 4.58172 16.4183 1 12 1C7.58172 1 4 4.58172 4 9C4 13.4183 8 17 12 21Z" fill="${color}" stroke="white" stroke-width="2"/>
-          <circle cx="12" cy="9" r="3" fill="white"/>
-        </svg>
-      </div>
-    `,
-    iconSize: [size, size],
-    iconAnchor: [size / 2, size],
-    popupAnchor: [0, -size],
-  });
-};
-
-// --- Internal Map Component (to be dynamic) ---
-const MapContent = ({ communities, onCommunitySelect, selectedSlug }: CommunityMapProps) => {
-  const { MapContainer, TileLayer, Marker, Popup, useMap } = require("react-leaflet");
-
-  const [stateFilter, setStateFilter] = useState<string>("ALL");
-  const [typesFilter, setTypesFilter] = useState<string[]>([]);
-  const [ilpFilter, setIlpFilter] = useState<boolean>(false);
-
+  // Filtering logic
   const filteredCommunities = useMemo(() => {
     return communities.filter((c) => {
-      const matchState = stateFilter === "ALL" || c.state === stateFilter;
-      const matchType = typesFilter.length === 0 || c.experienceTypes.some((t) => typesFilter.includes(t));
-      const matchIlp = !ilpFilter || c.ilpRequired;
-      return matchState && matchType && matchIlp;
+      const matchesSearch = c.name.toLowerCase().includes(search.toLowerCase()) || 
+                            c.state.toLowerCase().includes(search.toLowerCase());
+      const matchesState = selectedStates.length === 0 || selectedStates.includes(c.state);
+      const matchesIlp = !ilpOnly || c.ilpRequired;
+      return matchesSearch && matchesState && matchesIlp;
     });
-  }, [communities, stateFilter, typesFilter, ilpFilter]);
-
-  const experienceTypes = ["ECO", "CULTURAL", "CULINARY", "ADVENTURE"];
-  const states = ["ASSAM", "ARUNACHAL_PRADESH", "NAGALAND", "MANIPUR", "MEGHALAYA", "MIZORAM", "TRIPURA", "SIKKIM"];
+  }, [communities, search, selectedStates, ilpOnly]);
 
   return (
-    <div className="relative w-full h-[600px] rounded-2xl overflow-hidden border shadow-lg">
-      {/* Sidebar Filters */}
-      <div className="absolute top-4 left-4 z-[1000] w-64 bg-background/90 backdrop-blur-md p-4 rounded-xl shadow-xl border space-y-4 max-h-[calc(100%-2rem)] overflow-y-auto">
-        <h3 className="font-semibold text-sm flex items-center gap-2">
-          <Info className="h-4 w-4" /> Filter Explorer
-        </h3>
-        
-        <div className="space-y-2">
-          <Label className="text-xs uppercase text-muted-foreground font-bold">State</Label>
-          <Select value={stateFilter} onValueChange={setStateFilter}>
-            <SelectTrigger className="h-8 text-xs">
-              <SelectValue placeholder="All States" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="ALL">All States</SelectItem>
-              {states.map(s => <SelectItem key={s} value={s}>{s.replace("_", " ")}</SelectItem>)}
-            </SelectContent>
-          </Select>
+    <div className="flex flex-col h-screen bg-white overflow-hidden pt-16">
+      {/* Header / Filter Bar */}
+      <div className="h-16 border-b px-6 flex items-center justify-between gap-4 bg-white z-40">
+        <div className="flex items-center gap-3 flex-1 max-w-xl">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-neutral-400" />
+            <input 
+              type="text" 
+              placeholder="Search states or villages..." 
+              className="w-full h-10 pl-10 pr-4 rounded-full border border-neutral-200 text-sm focus:outline-none focus:ring-1 focus:ring-black"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+          
+          <div className="hidden md:flex gap-2">
+             <Button variant="outline" className="rounded-full h-10 border-neutral-200 text-xs font-bold flex gap-2">
+               STATE <ChevronDown className="w-3 h-3" />
+             </Button>
+             <Button variant="outline" className="rounded-full h-10 border-neutral-200 text-xs font-bold flex gap-2">
+               EXPERIENCE <ChevronDown className="w-3 h-3" />
+             </Button>
+          </div>
         </div>
 
-        <div className="space-y-2">
-          <Label className="text-xs uppercase text-muted-foreground font-bold">Experience Types</Label>
-          <div className="grid grid-cols-1 gap-2">
-            {experienceTypes.map((type) => (
-              <div key={type} className="flex items-center space-x-2">
-                <Checkbox 
-                  id={`filter-${type}`} 
-                  checked={typesFilter.includes(type)}
-                  onCheckedChange={(checked) => {
-                    setTypesFilter(prev => checked ? [...prev, type] : prev.filter(t => t !== type));
-                  }}
-                />
-                <Label htmlFor={`filter-${type}`} className="text-xs">{type}</Label>
+        <div className="flex items-center gap-4">
+          <div className="flex items-center gap-2 mr-4">
+            <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">ILP Required</span>
+            <Switch checked={ilpOnly} onCheckedChange={setIlpOnly} />
+          </div>
+
+          <div className="flex bg-neutral-100 p-1 rounded-full">
+            <button 
+              onClick={() => setViewMode("split")}
+              className={`p-1.5 rounded-full transition-all ${viewMode === "split" ? "bg-white shadow-sm" : "text-neutral-400"}`}
+            >
+              <div className="flex gap-1">
+                 <MapIcon className="w-4 h-4" />
+                 <List className="w-4 h-4" />
+              </div>
+            </button>
+            <button 
+              onClick={() => setViewMode("map")}
+              className={`p-1.5 rounded-full transition-all ${viewMode === "map" ? "bg-white shadow-sm" : "text-neutral-400"}`}
+            >
+              <MapIcon className="w-4 h-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Main Content Area */}
+      <div className="flex-1 flex overflow-hidden">
+        {/* Left Side: Map */}
+        <div className={`transition-all duration-500 bg-neutral-100 relative ${
+          viewMode === "map" ? "w-full" : viewMode === "list" ? "w-0" : "w-[60%]"
+        }`}>
+          {typeof window !== "undefined" && (
+            <MapContainer
+              center={[26.0, 92.5]}
+              zoom={7}
+              scrollWheelZoom={true}
+              style={{ height: "100%", width: "100%" }}
+              zoomControl={false}
+            >
+              <TileLayer url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png" />
+              
+              {filteredCommunities.map((c) => (
+                <Marker 
+                  key={c.id} 
+                  position={[c.latitude, c.longitude]}
+                >
+                  <Popup className="real-estate-popup">
+                    <div className="w-64 overflow-hidden rounded-xl border-none">
+                      <img src={c.coverImageUrl} className="w-full h-32 object-cover" alt={c.name} />
+                      <div className="p-4 space-y-1">
+                        <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-[1px]">{c.state} · {c.experienceTypes[0]}</p>
+                        <h4 className="font-bold text-lg leading-none">{c.name}</h4>
+                        <div className="flex items-center gap-1 text-xs font-bold pt-2">
+                           <Star className="w-3 h-3 fill-black" />
+                           <span>{c.rating}</span>
+                        </div>
+                      </div>
+                    </div>
+                  </Popup>
+                </Marker>
+              ))}
+            </MapContainer>
+          )}
+          
+          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-40 bg-white px-6 py-3 rounded-full shadow-2xl border flex items-center gap-2">
+             <span className="text-xs font-bold tracking-tight">{filteredCommunities.length} COMMUNITIES FOUND</span>
+          </div>
+        </div>
+
+        {/* Right Side: List/Grid */}
+        <div className={`transition-all duration-500 overflow-y-auto px-6 py-8 ${
+          viewMode === "list" ? "w-full" : viewMode === "map" ? "w-0" : "w-[40%]"
+        }`}>
+          <div className={`grid gap-12 ${viewMode === "list" ? "md:grid-cols-3 lg:grid-cols-4" : "grid-cols-1"}`}>
+            {filteredCommunities.map((c) => (
+              <div 
+                key={c.id} 
+                className="group cursor-pointer"
+                onMouseEnter={() => onCommunitySelect?.(c.slug)}
+              >
+                <div className="relative aspect-[4/3] rounded-2xl overflow-hidden mb-4 bg-neutral-100">
+                  <img 
+                    src={c.coverImageUrl} 
+                    alt={c.name} 
+                    className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" 
+                  />
+                  {c.ilpRequired && (
+                    <Badge className="absolute top-4 left-4 bg-black text-white text-[9px] font-bold tracking-widest px-2 py-0.5 rounded-sm">
+                      ILP REQ
+                    </Badge>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="flex justify-between items-start">
+                    <h3 className="text-xl font-bold tracking-tight">{c.name}</h3>
+                    <div className="flex items-center gap-1 text-xs font-bold">
+                       <Star className="w-3 h-3 fill-black" />
+                       <span>{c.rating}</span>
+                    </div>
+                  </div>
+                  <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest leading-none">
+                    {c.state} · {c.experienceTypes.join(" · ")}
+                  </p>
+                  <p className="text-sm text-neutral-500 pt-2 line-clamp-2 leading-relaxed">
+                    {c.shortDesc}
+                  </p>
+                </div>
               </div>
             ))}
           </div>
         </div>
-
-        <div className="flex items-center justify-between pt-2 border-t">
-          <Label htmlFor="ilp-filter" className="text-xs font-bold uppercase text-muted-foreground">ILP Required Only</Label>
-          <Switch id="ilp-filter" checked={ilpFilter} onCheckedChange={setIlpFilter} />
-        </div>
-
-        <div className="pt-2 text-[10px] text-muted-foreground italic">
-          Showing {filteredCommunities.length} communities
-        </div>
       </div>
 
-      {/* Map */}
-      <MapContainer 
-        center={[26.0, 92.5]} 
-        zoom={7} 
-        className="w-full h-full"
-        scrollWheelZoom={true}
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>'
-          url="https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png"
-        />
-
-        {filteredCommunities.map((community) => {
-          const isSelected = community.slug === selectedSlug;
-          const primaryType = community.experienceTypes[0] || "DEFAULT";
-
-          return (
-            <Marker
-              key={community.id}
-              position={[community.latitude, community.longitude]}
-              icon={getMarkerIcon(primaryType, isSelected)}
-              eventHandlers={{
-                click: () => onCommunitySelect(community.slug),
-              }}
-            >
-              <Popup className="custom-popup">
-                <div className="w-64 p-0">
-                  {community.coverImageUrl && (
-                    <img 
-                      src={community.coverImageUrl} 
-                      alt={community.name} 
-                      className="w-full h-32 object-cover rounded-t-lg"
-                    />
-                  )}
-                  <div className="p-3 space-y-2">
-                    <div className="flex justify-between items-start">
-                      <h4 className="font-bold text-sm m-0 leading-tight">{community.name}</h4>
-                      <div className="flex items-center gap-1 text-amber-500 text-xs">
-                        <Star className="h-3 w-3 fill-current" />
-                        <span>{community.rating}</span>
-                      </div>
-                    </div>
-                    <p className="text-[10px] text-muted-foreground uppercase tracking-wider font-semibold">{community.state.replace("_", " ")}</p>
-                    <p className="text-xs text-muted-foreground line-clamp-2">{community.shortDesc}</p>
-                    
-                    <div className="flex flex-wrap gap-1">
-                      {community.experienceTypes.slice(0, 2).map(t => (
-                        <Badge key={t} variant="outline" className="text-[9px] px-1 py-0">{t}</Badge>
-                      ))}
-                      {community.ilpRequired && (
-                        <Badge variant="destructive" className="text-[9px] px-1 py-0">ILP</Badge>
-                      )}
-                    </div>
-
-                    <button 
-                      onClick={() => onCommunitySelect(community.slug)}
-                      className="w-full mt-2 bg-primary text-primary-foreground py-1.5 rounded-md text-xs font-medium flex items-center justify-center gap-2 hover:bg-primary/90 transition-colors"
-                    >
-                      View Community <ArrowRight className="h-3 w-3" />
-                    </button>
-                  </div>
-                </div>
-              </Popup>
-            </Marker>
-          );
-        })}
-      </MapContainer>
+      <style jsx global>{`
+        .leaflet-popup-content-wrapper {
+          padding: 0 !important;
+          border-radius: 16px !important;
+          overflow: hidden;
+          box-shadow: 0 20px 40px -10px rgba(0,0,0,0.2) !important;
+        }
+        .leaflet-popup-content {
+          margin: 0 !important;
+          width: 256px !important;
+        }
+        .leaflet-popup-tip {
+          display: none;
+        }
+      `}</style>
     </div>
   );
-};
-
-// --- Dynamic Export ---
-const CommunityMap = dynamic(() => Promise.resolve(MapContent), {
-  ssr: false,
-  loading: () => (
-    <div className="w-full h-[600px] bg-muted animate-pulse rounded-2xl flex items-center justify-center text-muted-foreground border">
-      <div className="flex flex-col items-center gap-4">
-        <MapPin className="h-12 w-12 animate-bounce" />
-        <p className="font-medium">Loading VanRoots Map...</p>
-      </div>
-    </div>
-  )
-});
-
-export default CommunityMap;
+}
